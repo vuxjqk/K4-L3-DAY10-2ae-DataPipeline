@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from statistics import mean
 import os
 import sys
+import time
 import types
 from typing import Any
 
@@ -16,6 +17,13 @@ from retrieval.embeddings import MiniLMEmbeddings
 from retrieval.index import LocalEmbeddingIndex
 from retrieval.llm import build_llm
 from retrieval.qa import answer_question
+
+
+JUDGE_MAX_ATTEMPTS = 3
+JUDGE_BACKOFF_SECONDS = 20
+FALLBACK_JUDGE_REASONING = "Fallback heuristic judge used because the LLM evaluator was unavailable."
+EXACT_MATCH_JUDGE_REASONING = "Exact match with the reference answer; LLM judge call skipped."
+_judge_state = {"daily_quota_exhausted": False}
 
 
 class JudgeVerdict(BaseModel):
@@ -58,15 +66,31 @@ Return:
 - correct = true only when the answer is materially correct
 - short reasoning
 """.strip()
+    if normalize_whitespace(reference).lower() == normalize_whitespace(prediction).lower():
+        # Trung khop tuyet doi -> chac chan dung, khong ton quota LLM (free tier chi ~20 request/ngay).
+        return JudgeVerdict(score=5, correct=True, reasoning=EXACT_MATCH_JUDGE_REASONING)
     try:
+        if _judge_state["daily_quota_exhausted"]:
+            raise RuntimeError("LLM judge disabled: daily quota exhausted earlier in this run.")
         llm = build_llm(settings=settings, temperature=0.0).with_structured_output(JudgeVerdict)
-        return llm.invoke(prompt)
+        for attempt in range(JUDGE_MAX_ATTEMPTS):
+            try:
+                return llm.invoke(prompt)
+            except Exception as exc:
+                # Het quota theo ngay -> retry vo ich, ngat han LLM judge cho phan con lai cua run.
+                if "PerDay" in str(exc):
+                    _judge_state["daily_quota_exhausted"] = True
+                    raise
+                # Loi tam thoi (429 theo phut, ngat ket noi) -> backoff roi thu lai truoc khi fallback.
+                if attempt == JUDGE_MAX_ATTEMPTS - 1:
+                    raise
+                time.sleep(JUDGE_BACKOFF_SECONDS * (attempt + 1))
     except Exception:
         score = 5 if _token_f1(reference, prediction) >= 0.95 else 3 if _token_f1(reference, prediction) >= 0.5 else 1
         return JudgeVerdict(
             score=score,
             correct=score >= 3,
-            reasoning="Fallback heuristic judge used because the LLM evaluator was unavailable.",
+            reasoning=FALLBACK_JUDGE_REASONING,
         )
 
 
@@ -98,6 +122,21 @@ def _run_ragas(settings: Settings, answers: list[dict[str, Any]]) -> dict[str, A
         return dict(result)
     except Exception as exc:  # pragma: no cover
         return {"error": f"Ragas evaluation failed: {exc}"}
+
+
+def _breakdown_by_question_type(answers: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in answers:
+        grouped.setdefault(item["question_type"], []).append(item)
+    return {
+        question_type: {
+            "samples": len(items),
+            "retrieval_hit_rate": mean(1.0 if item["retrieval_hit"] else 0.0 for item in items),
+            "mean_token_f1": mean(item["token_f1"] for item in items),
+            "judge_accuracy": mean(1.0 if item["judge"]["correct"] else 0.0 for item in items),
+        }
+        for question_type, items in sorted(grouped.items())
+    }
 
 
 def evaluate_pipeline(
@@ -136,6 +175,9 @@ def evaluate_pipeline(
         "mean_token_f1": mean(item["token_f1"] for item in answers),
         "judge_accuracy": mean(1.0 if item["judge"]["correct"] else 0.0 for item in answers),
         "mean_judge_score": mean(item["judge"]["score"] for item in answers),
+        "judge_exact_match_count": sum(item["judge"]["reasoning"] == EXACT_MATCH_JUDGE_REASONING for item in answers),
+        "judge_fallback_count": sum(item["judge"]["reasoning"] == FALLBACK_JUDGE_REASONING for item in answers),
+        "by_question_type": _breakdown_by_question_type(answers),
     }
     summary["ragas"] = _run_ragas(settings, answers)
 

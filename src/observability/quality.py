@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import great_expectations as gx
 import pandas as pd
 
 from core.config import Settings
+from core.utils import write_json
 
 
 def run_data_quality_checks(
@@ -89,6 +91,8 @@ def run_data_quality_checks(
 
     if "corrupt" in report_name.lower():
         output_path = settings.paths.corrupted_quality_report
+    elif "repair" in report_name.lower():
+        output_path = settings.paths.quality_dir / "repaired_quality_report.json"
     else:
         output_path = settings.paths.baseline_quality_report
 

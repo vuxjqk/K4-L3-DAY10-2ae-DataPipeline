@@ -1,0 +1,10 @@
+[
+  {
+    "question": "Which papers discuss data quality gates or data observability for RAG systems?",
+    "error": "GoogleAPIError: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}"
+  },
+  {
+    "question": "What does the corpus say about freshness SLAs for LLM knowledge augmentation?",
+    "error": "GoogleAPIError: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}"
+  }
+]
