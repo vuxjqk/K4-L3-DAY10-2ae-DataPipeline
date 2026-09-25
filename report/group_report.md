@@ -160,7 +160,7 @@ Test set được giữ cố định cho cả ba trạng thái. Phase 1 sinh tes
 | ------------------------ | -------------------------------------- | ------------ | ---------- |
 | Raw response/records     | `data/raw/`                          | Có | 24 items / 24 records |
 | Cleaned dataset          | `data/clean/`                        | Có | 24 dòng, CSV + JSON |
-| Embedding manifest/index | `data/embeddings/`, `data/chroma/`   | Có | Manifest 3 collection (24/21/24 docs) được commit; `data/chroma/` là DB nhị phân nằm trong `.gitignore` và được sinh lại khi chạy pipeline |
+| Embedding manifest/index | `data/embeddings/`, `data/chroma/`   | Có | ChromaDB của lần chạy nộp bài (`chroma.sqlite3` + 3 segment `papers-baseline`/`papers-corrupted`/`papers-repaired`, 24/21/24 docs) và manifest trong `data/embeddings/` |
 | Evaluation set           | `data/eval/test_set.json`            | Có | 10 câu |
 | Baseline metrics         | `data/results/baseline_metrics.json` | Có | kèm `baseline_answers.json` |
 | Quality/freshness        | `data/quality/`                      | Có | `baseline_quality_report.json`, `freshness_report.json` |
