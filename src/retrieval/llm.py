@@ -17,6 +17,8 @@ def build_llm(settings: Settings, temperature: float = 0.0):
             model=settings.model_name,
             google_api_key=settings.google_api_key,
             temperature=temperature,
+            # Free tier chi ~20 request/ngay/model: han che SDK tu retry lam hao quota.
+            max_retries=2,
         )
     if provider == "openai":
         return ChatOpenAI(

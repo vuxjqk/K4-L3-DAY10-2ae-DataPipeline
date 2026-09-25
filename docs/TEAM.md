@@ -11,7 +11,7 @@
 | STT | Họ và tên       | MSSV        | Email                                               | Vai trò & Phân công công việc                                                                                      | Báo cáo cá nhân                       |
 | --: | --------------- | ----------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
 |   1 | Nguyễn Bá Chính | 2A202602654 | [Chinhlhiep@gmail.com](mailto:Chinhlhiep@gmail.com) | Data Foundation & Observability (`crossref.py`, `cleaning.py`, `quality.py`, `corruption.py`)                      | `report/2A202602654_NguyenBaChinh.md` |
-|   2 | Trần Anh Vũ     | 2A202602570 | [vuxjqk@gmail.com](mailto:vuxjqk@gmail.com)         | RAG, Evaluation & Pipeline Integration (`retrieval/`, `evaluation/`, `phase1.py`, `corruption_flow.py`, reporting) | `report/2A202602570_TranAnhVu.md`     |
+|   2 | Trần Anh Vũ     | 2A202602570 | [vuxjqk@gmail.com](mailto:vuxjqk@gmail.com)         | Evaluation, Reporting & Pipeline Integration (`testset.py`, `metrics.py`, `reporting.py`, `phase1.py`, `corruption_flow.py`) | `report/2A202602570_TranAnhVu.md`     |
 
 ---
 
@@ -77,40 +77,24 @@
 
 ## Trần Anh Vũ - 2A202602570
 
-* **Vai trò:** RAG, Evaluation & Pipeline Integration.
+* **Vai trò:** Evaluation, Reporting & Pipeline Integration.
 
 * **Công việc chi tiết đã hoàn thành:**
 
-  * Xây dựng và quản lý phần Retrieval trong `src/retrieval/`.
-  * Sử dụng mô hình `sentence-transformers/all-MiniLM-L6-v2` để sinh embedding.
-  * Xây dựng và quản lý Vector Store bằng ChromaDB.
-  * Quản lý các collection phục vụ việc so sánh:
-
-    * `papers-baseline`
-    * `papers-corrupted`
-    * `papers-repaired`
-  * Xây dựng logic truy vấn tài liệu và QA Agent.
-  * Xây dựng evaluation test set trong `src/evaluation/testset.py`.
-  * Sinh bộ câu hỏi đánh giá gồm các nhóm:
+  * CP2: xây dựng bộ 10 câu hỏi đánh giá deterministic trong `src/evaluation/testset.py`, phủ 4 nhóm:
 
     * `summary`
     * `authors`
     * `date`
     * `categories`
-  * Đánh giá hiệu năng của RAG bằng các metric như:
-
-    * Retrieval Hit Rate
-    * Token F1
-    * LLM Judge
-  * Tích hợp Baseline Pipeline trong `src/pipelines/phase1.py`.
-  * Kết nối toàn bộ luồng:
-    `Ingestion → Cleaning → Quality → Embedding → ChromaDB → Evaluation → Reporting`.
-  * Tích hợp Corruption & Repair Pipeline trong `src/pipelines/corruption_flow.py`.
-  * Đánh giá và so sánh ba trạng thái:
-
-    * Baseline
-    * Corrupted
-    * Repaired
+  * CP3: tích hợp Baseline Pipeline trong `src/pipelines/phase1.py`, kết nối
+    `Ingestion → Cleaning → Quality Gate → Embedding → ChromaDB → Evaluation → Reporting`;
+    Quality Gate chặn việc index nếu dữ liệu baseline FAIL.
+  * CP4 (evaluation): index dữ liệu bị corruption vào collection `papers-corrupted` và đo mức suy giảm của RAG.
+  * CP5: Idempotent Repair từ raw records trong `src/pipelines/corruption_flow.py`; chạy repair 2 lần và so hash nội dung với baseline; đánh giá trên collection `papers-repaired`.
+  * Viết `src/observability/reporting.py`: sinh `phase1_report.md` và bảng đối chiếu Baseline vs Corrupted vs Repaired trong `corruption_report.md`.
+  * Mở rộng `src/evaluation/metrics.py`: breakdown metric theo loại câu hỏi, chấm exact-match không tốn quota LLM, circuit breaker khi hết quota Gemini free tier.
+  * Sử dụng module `src/retrieval/` có sẵn trong starter (MiniLM + ChromaDB, QA agent) để build 3 collection tách biệt.
   * Sinh các artifact kết quả:
 
     * `data/results/baseline_metrics.json`
@@ -118,7 +102,7 @@
     * `data/results/repaired_metrics.json`
     * `data/reports/phase1_report.md`
     * `data/reports/corruption_report.md`
-  * Phối hợp kiểm tra End-to-End Pipeline và chuẩn bị kết quả phục vụ Live Demo.
+  * Viết `report/group_report.md` và `report/2A202602570_TranAnhVu.md`; chuẩn bị kết quả phục vụ Live Demo.
 
 * **Điều học được / Đóng góp chính:**
 
