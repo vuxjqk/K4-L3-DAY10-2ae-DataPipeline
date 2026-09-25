@@ -15,7 +15,7 @@ Nhóm có 2 thành viên (ít hơn mức 3–5 của template), nên mỗi ngư�
 
 | STT | Họ và tên | MSSV | Vai trò chính | Module/deliverable sở hữu |
 | --: | --- | --- | --- | --- |
-| 1 | Trần Anh Vũ | 2A202602570 | Evaluation, Reporting & Integration owner | `src/evaluation/testset.py`, `src/evaluation/metrics.py` (mở rộng), `src/observability/reporting.py`, `src/pipelines/phase1.py`, `src/pipelines/corruption_flow.py`; chạy tích hợp và sinh toàn bộ artifacts |
+| 1 | Trần Anh Vũ | 2A202602570 | Evaluation, Reporting & Integration owner | `src/evaluation/testset.py`, `src/evaluation/metrics.py` (mở rộng), `src/observability/reporting.py`, `src/pipelines/phase1.py`, `src/pipelines/corruption_flow.py`, `src/pipelines/self_healing.py`; chạy tích hợp và sinh toàn bộ artifacts |
 | 2 | Nguyễn Bá Chính | 2A202602654 | Data Foundation, Quality & Corruption owner | `src/ingestion/crossref.py`, `src/ingestion/cleaning.py`, `src/observability/quality.py`, `src/ingestion/corruption.py` |
 
 ## 2. Tóm tắt kết quả
@@ -28,9 +28,9 @@ Baseline sinh đủ các artifact: `papers_clean.csv/json`, `test_set.json`, `ba
 
 Sau khi tiêm 6 loại lỗi, Quality Gate chuyển sang **FAIL** (vi phạm unique `paper_id` và độ dài `summary`) và Freshness chuyển sang **stale** (33,3% dòng quá 180 ngày, vượt ngưỡng 25%). Agent vẫn trả lời bình thường mà không báo lỗi, nhưng Hit Rate giảm từ 1.0 xuống 0.7 và Token F1 từ 1.0 xuống 0.772. Lỗi gây hại rõ nhất là **drop latest records**: 3/10 câu mất tài liệu đích, trong đó có câu hỏi về ngày xuất bản bị trả lời sai một cách tự tin.
 
-Repair tái tạo lại dữ liệu từ `data/raw/crossref_records.json`. Kết quả phục hồi 100% cả 4 chỉ số. Chạy repair hai lần cho kết quả giống hệt nhau và trùng hash với baseline.
+Repair được kích hoạt tự động (self-healing, bonus B2): pipeline tự chẩn đoán 3 vi phạm (unique `paper_id`, độ dài `summary`, freshness 7/21 stale) rồi tự chọn chiến lược `rebuild_from_raw`, tái tạo dữ liệu từ `data/raw/crossref_records.json` mà không cần can thiệp tay. Kết quả phục hồi 100% cả 4 chỉ số. Chạy repair hai lần cho kết quả giống hệt nhau và trùng hash với baseline.
 
-Giới hạn lớn nhất là quota free tier của Gemini (khoảng 20 request/ngày/model). Vì vậy LLM judge chỉ được gọi cho những câu không khớp tuyệt đối: 2/30 câu phải dùng heuristic dự phòng, và agent demo không chạy được do lỗi 503/429.
+Giới hạn lớn nhất là quota free tier của Gemini (khoảng 20 request/ngày/model). Vì vậy LLM judge chỉ được gọi cho những câu không khớp tuyệt đối: 27/30 câu khớp tuyệt đối; 3 câu lệch (đều ở trạng thái Corrupted) phải dùng heuristic dự phòng vì hết quota ở lần chạy cuối, và agent demo không chạy được do lỗi 503/429.
 
 ## 3. Kiến trúc và luồng dữ liệu
 
@@ -45,7 +45,9 @@ Crossref API (fallback: data/raw/crossref_response.json)
     -> data/eval/test_set.json -> baseline_metrics.json -> phase1_report.md
     -> corruption (6 kịch bản) -> corruption_log.json
     -> quality/freshness trên dữ liệu lỗi (ALERT) -> `papers-corrupted` -> corrupted_metrics.json
-    -> repair: rebuild từ raw records (chạy 2 lần, so hash) -> `papers-repaired` -> repaired_metrics.json
+    -> self-healing: diagnose (schema/GX/freshness) -> tự động rebuild_from_raw (dự phòng: rollback_last_known_good)
+       -> chấp nhận khi GX PASS + Fresh + idempotent (so hash) -> `papers-repaired` -> repaired_metrics.json
+       -> data/results/self_healing_log.json
     -> corruption_report.md (Baseline vs Corrupted vs Repaired)
 ```
 
@@ -58,7 +60,7 @@ Crossref API (fallback: data/raw/crossref_response.json)
 | Embedding/index   | Clean dataframe | `all-MiniLM-L6-v2` (normalize), ChromaDB cosine, 3 collection tách biệt | `data/chroma/`, `data/embeddings/*.json` | Starter code; Trần Anh Vũ tích hợp |
 | Evaluation        | Clean dataframe, index | Sinh 10 câu hỏi deterministic; Hit Rate, Token F1, LLM judge, breakdown theo loại câu hỏi | `data/eval/test_set.json`, `data/results/*_metrics.json`, `*_answers.json` | Trần Anh Vũ |
 | Observability     | Dataframe (baseline/corrupted/repaired) | 6 expectation GX 1.x (ephemeral context), Freshness SLA `age_days > 180` với ngưỡng tỷ lệ 25% | `data/quality/*.json` | Nguyễn Bá Chính (checks), Trần Anh Vũ (reporting) |
-| Corruption/repair | Clean dataframe / raw records | 6 kịch bản lỗi + log; repair từ raw, kiểm idempotency bằng hash | `corruption_log.json`, `papers_clean_corrupted/repaired.*` | Nguyễn Bá Chính (corruption), Trần Anh Vũ (repair flow) |
+| Corruption/repair | Clean dataframe / raw records | 6 kịch bản lỗi + log; self-healing tự chẩn đoán và tự repair (rebuild từ raw → rollback), kiểm idempotency bằng hash | `corruption_log.json`, `self_healing_log.json`, `papers_clean_corrupted/repaired.*` | Nguyễn Bá Chính (corruption), Trần Anh Vũ (repair flow) |
 | Orchestration     | Settings, toàn bộ module | Thứ tự chạy phase 1 và corruption flow, gate, in bảng 3 trạng thái | `phase1_report.md`, `corruption_report.md` | Trần Anh Vũ |
 
 ## 4. Cách tái hiện kết quả
@@ -97,7 +99,7 @@ Nếu cần sinh lại bộ test set, đặt `REFRESH_TEST_SET=1`. Nếu cần g
 | Lệnh             | Trạng thái                                    | Thời điểm chạy gần nhất | Bằng chứng                         |
 | ----------------- | ----------------------------------------------- | ----------------------------- | ------------------------------------ |
 | Baseline pipeline | Thành công (exit 0); agent demo tùy chọn bị lỗi 503 từ Gemini | 2026-09-25 16:04 (GMT+7) | `data/results/baseline_metrics.json`, `data/reports/phase1_report.md` |
-| Corruption flow   | Thành công (exit 0) | 2026-09-25 16:07 (GMT+7) | `data/results/corrupted_metrics.json`, `repaired_metrics.json`, `data/reports/corruption_report.md` |
+| Corruption flow   | Thành công (exit 0) | 2026-09-25 17:29 (GMT+7) | `data/results/corrupted_metrics.json`, `repaired_metrics.json`, `data/reports/corruption_report.md` |
 
 ## 5. Ingestion, cleaning và data contract
 
@@ -218,13 +220,23 @@ Corruption log:
 
 Repair không sửa trên dataframe lỗi. Luồng repair đọc lại `data/raw/crossref_records.json`, là bản lưu thô bất biến, rồi chạy lại đúng `build_clean_dataframe`. Mọi thay đổi do corruption gây ra đều bị loại bỏ, kể cả những lỗi mà quality gate không phát hiện được như noise hay title bị cắt. Để kiểm chứng, pipeline chạy repair hai lần và so hash nội dung (`repair_run_twice_identical=True`), đồng thời so với baseline (`repaired_matches_baseline=True`). Repair cũng phải qua lại Quality Gate trước khi được index. Nếu gate vẫn FAIL, pipeline dừng.
 
+### Self-healing tự động (Bonus B2)
+
+Repair không chạy vô điều kiện mà do `src/pipelines/self_healing.py` quyết định:
+
+1. **Tự phát hiện:** `diagnose()` kiểm tra schema (thiếu cột bắt buộc), từng expectation GX bị FAIL và vi phạm Freshness SLA. Danh sách rỗng nghĩa là batch khỏe và không cần làm gì (`healthy_no_action`).
+2. **Tự phục hồi theo chuỗi chiến lược:** `rebuild_from_raw` → `rollback_last_known_good` (clean snapshot đã qua gate ở phase 1). Mỗi ứng viên phải vượt lại GX + Freshness và cho cùng hash khi chạy lại mới được chấp nhận.
+3. **Escalate:** nếu mọi chiến lược đều thất bại, pipeline dừng với trạng thái `escalated` để con người xử lý, không index dữ liệu xấu.
+
+Trong lần chạy nộp bài (`data/results/self_healing_log.json`): `triggered=True`, 3 lý do được phát hiện (`ExpectColumnValuesToBeUnique`, `ExpectColumnValueLengthsToBeBetween`, freshness 7/21), chiến lược `rebuild_from_raw` được chấp nhận ngay lần thử đầu, `status=healed`. Cả 4 nhánh (healthy, rebuild, rollback khi raw hỏng, escalate khi mọi chiến lược hỏng) đã được kiểm thử bằng cách giả lập nguồn raw bị lỗi.
+
 ## 10. So sánh baseline, corrupted và repaired
 
 | Metric/signal            | Baseline | Corrupted | Repaired | Thay đổi do corruption | Mức phục hồi | Nhận xét   |
 | ------------------------ | -------: | --------: | -------: | -----------------------: | --------------: | ------------ |
 | `retrieval_hit_rate`   | 1.0 | 0.7 | 1.0 | −0.3 (−30%) | 100% | Do drop_latest: 3 tài liệu đích bị xóa khỏi index |
 | `mean_token_f1`        | 1.0 | 0.772 | 1.0 | −0.228 (−22,8%) | 100% | Giảm ở `date` (0.5) và `summary` (0.573) |
-| `judge_accuracy`       | 1.0 | 0.8 | 1.0 | −0.2 | 100% | 1 câu do LLM chấm, 2 câu chấm bằng heuristic |
+| `judge_accuracy`       | 1.0 | 0.8 | 1.0 | −0.2 | 100% | 7 câu khớp tuyệt đối; 3 câu lệch chấm bằng heuristic (hết quota Gemini) |
 | `mean_judge_score`     | 5 | 4 | 5 | −1 | 100% | |
 | Quality checks pass/fail | PASS 6/6 | FAIL 4/6 | PASS 6/6 | unique + summary length FAIL | Phục hồi | |
 | Freshness status         | Fresh (1/24) | Stale (7/21) | Fresh (1/24) | stale ratio 4,2% → 33,3% | Phục hồi | |
@@ -250,7 +262,7 @@ Vấn đề thứ hai là quota Gemini free tier: 20 request/ngày/model, và c�
 | --------------------- | -------------- | ----------------------------------------- |
 | Không có expectation cho độ dài title và cho ký tự rác trong summary | `truncate_title` và `inject_noise` lọt qua Quality Gate; eval_005 bị giảm F1 mà không có cảnh báo | Thêm `ExpectColumnValueLengthsToBeBetween(title, min_value=8)` và `ExpectColumnValuesToNotMatchRegex(summary, "[@#]{3}")`; kiểm chứng bằng corrupted report báo thêm 2 FAIL |
 | Hit Rate chỉ xét tài liệu đích có nằm trong top-k | eval_002 retrieval miss nhưng Token F1 vẫn 1.0 do bài "Advanced Perspectives…" có cùng tác giả → metric câu trả lời đánh giá quá cao | Thêm metric `top1_doc_match` và đếm các câu "đúng nhưng sai nguồn" |
-| Quota Gemini free tier | 2/30 câu judge phải dùng heuristic; agent demo lỗi 503/429 | Dùng key trả phí hoặc chạy lại ngày khác; xác nhận `judge_fallback_count = 0` |
+| Quota Gemini free tier | 3/30 câu judge phải dùng heuristic; agent demo lỗi 503/429 | Dùng key trả phí hoặc chạy lại ngày khác; xác nhận `judge_fallback_count = 0` |
 | Nhóm chỉ có 2 thành viên | Mỗi người ôm nhiều khối, ít review chéo | Viết test pytest cho contract clean schema và test set |
 
 ## 13. Checklist trước khi nộp

@@ -1,0 +1,22 @@
+{
+  "checked_at": "2026-09-25T10:29:48+00:00",
+  "triggered": true,
+  "reasons": [
+    "quality: ExpectColumnValuesToBeUnique failed",
+    "quality: ExpectColumnValueLengthsToBeBetween failed",
+    "freshness: 7/21 rows older than 180 days (SLA <= 25%)"
+  ],
+  "attempts": [
+    {
+      "strategy": "rebuild_from_raw",
+      "rows": 24,
+      "quality_success": true,
+      "is_fresh": true,
+      "idempotent": true,
+      "remaining_issues": [],
+      "accepted": true
+    }
+  ],
+  "status": "healed",
+  "strategy_applied": "rebuild_from_raw"
+}

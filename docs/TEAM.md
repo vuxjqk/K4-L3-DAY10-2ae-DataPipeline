@@ -92,6 +92,7 @@
     Quality Gate chặn việc index nếu dữ liệu baseline FAIL.
   * CP4 (evaluation): index dữ liệu bị corruption vào collection `papers-corrupted` và đo mức suy giảm của RAG.
   * CP5: Idempotent Repair từ raw records trong `src/pipelines/corruption_flow.py`; chạy repair 2 lần và so hash nội dung với baseline; đánh giá trên collection `papers-repaired`.
+  * Bonus B2 — Self-healing tự động trong `src/pipelines/self_healing.py`: tự phát hiện vi phạm schema / GX / Freshness và tự kích hoạt repair theo chuỗi `rebuild_from_raw` → `rollback_last_known_good`, có kiểm chứng idempotency và escalate khi mọi chiến lược thất bại.
   * Viết `src/observability/reporting.py`: sinh `phase1_report.md` và bảng đối chiếu Baseline vs Corrupted vs Repaired trong `corruption_report.md`.
   * Mở rộng `src/evaluation/metrics.py`: breakdown metric theo loại câu hỏi, chấm exact-match không tốn quota LLM, circuit breaker khi hết quota Gemini free tier.
   * Sử dụng module `src/retrieval/` có sẵn trong starter (MiniLM + ChromaDB, QA agent) để build 3 collection tách biệt.

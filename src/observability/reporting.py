@@ -205,6 +205,7 @@ def generate_corruption_report(
     repaired_freshness: dict[str, Any],
     corruption_log: Any = None,
     idempotency: dict[str, Any] | None = None,
+    self_healing: dict[str, Any] | None = None,
 ) -> None:
     """Viet markdown report so sanh Baseline / Corrupted / Repaired (CP5)."""
     lines = [
@@ -293,9 +294,35 @@ def generate_corruption_report(
             *_key_value_table(idempotency, header=("Check", "Result")),
         ]
 
+    if self_healing:
+        lines += [
+            "",
+            "## 5. Self-healing tự động",
+            "",
+            f"- **Kích hoạt:** {_fmt(self_healing.get('triggered'))} — "
+            f"trạng thái `{self_healing.get('status')}`, chiến lược áp dụng `{self_healing.get('strategy_applied')}`.",
+            "- **Vi phạm được tự động phát hiện:**",
+            *[f"  - {reason}" for reason in self_healing.get("reasons", [])],
+            "",
+            "| # | Chiến lược | Rows | Quality | Fresh | Idempotent | Vấn đề còn lại | Chấp nhận |",
+            "| ---: | :--- | ---: | :--- | :--- | :--- | :--- | :--- |",
+        ]
+        for position, attempt in enumerate(self_healing.get("attempts", []), start=1):
+            lines.append(
+                f"| {position} | `{attempt['strategy']}` | {attempt['rows']} | {_status(attempt['quality_success'])} | "
+                f"{_status(attempt['is_fresh'])} | {_fmt(attempt['idempotent'])} | "
+                f"{_cell(', '.join(attempt['remaining_issues']) or 'không')} | {_fmt(attempt['accepted'])} |"
+            )
+        lines += [
+            "",
+            "Pipeline tự chọn chiến lược theo thứ tự `rebuild_from_raw` → `rollback_last_known_good`; "
+            "một bản chỉ được chấp nhận khi vượt lại Quality Gate + Freshness SLA và cho cùng hash khi chạy lại. "
+            "Nếu mọi chiến lược thất bại, pipeline dừng với trạng thái `escalated` để con người xử lý.",
+        ]
+
     lines += [
         "",
-        "## 5. Phân tích",
+        "## 6. Phân tích",
         "",
         *[
             f"- {note}"

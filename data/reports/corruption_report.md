@@ -1,6 +1,6 @@
 # Corruption Report — Baseline vs Corrupted vs Repaired
 
-_Generated at: 2026-09-25T09:07:56+00:00_
+_Generated at: 2026-09-25T10:29:49+00:00_
 
 ## 1. So sánh hiệu năng RAG 3 trạng thái
 
@@ -12,7 +12,7 @@ _Generated at: 2026-09-25T09:07:56+00:00_
 | Mean Judge Score (1-5) | 5 | 4 | 5 | -1.0000 (-20.0%) | +0.0000 (+0.0%) |
 | Samples | 10 | 10 | 10 | +0.0000 (+0.0%) | +0.0000 (+0.0%) |
 | Judge exact-match (no LLM call) count | 10 | 7 | 10 | -3.0000 (-30.0%) | +0.0000 (+0.0%) |
-| Judge fallback (heuristic) count | 0 | 2 | 0 | +2.0000 | +0.0000 |
+| Judge fallback (heuristic) count | 0 | 3 | 0 | +3.0000 | +0.0000 |
 
 ### Token F1 theo loại câu hỏi
 
@@ -93,7 +93,21 @@ _Generated at: 2026-09-25T09:07:56+00:00_
 | `repaired_matches_baseline` | ✅ True |
 | `repaired_quality_success` | ✅ True |
 
-## 5. Phân tích
+## 5. Self-healing tự động
+
+- **Kích hoạt:** ✅ True — trạng thái `healed`, chiến lược áp dụng `rebuild_from_raw`.
+- **Vi phạm được tự động phát hiện:**
+  - quality: ExpectColumnValuesToBeUnique failed
+  - quality: ExpectColumnValueLengthsToBeBetween failed
+  - freshness: 7/21 rows older than 180 days (SLA <= 25%)
+
+| # | Chiến lược | Rows | Quality | Fresh | Idempotent | Vấn đề còn lại | Chấp nhận |
+| ---: | :--- | ---: | :--- | :--- | :--- | :--- | :--- |
+| 1 | `rebuild_from_raw` | 24 | ✅ PASS | ✅ PASS | ✅ True | không | ✅ True |
+
+Pipeline tự chọn chiến lược theo thứ tự `rebuild_from_raw` → `rollback_last_known_good`; một bản chỉ được chấp nhận khi vượt lại Quality Gate + Freshness SLA và cho cùng hash khi chạy lại. Nếu mọi chiến lược thất bại, pipeline dừng với trạng thái `escalated` để con người xử lý.
+
+## 6. Phân tích
 
 - **Silent failure:** trên dữ liệu bị tiêm lỗi, pipeline vẫn chạy không báo lỗi nhưng chất lượng giảm: Retrieval Hit Rate 1.0000 → 0.7000; Mean Token F1 1.0000 → 0.7720; LLM Judge Accuracy 1.0000 → 0.8000; Mean Judge Score (1-5) 5 → 4.
 - **Observability phát hiện sự cố:** Quality Gate GX 1.x trả về `success=False` và Freshness SLA gắn cờ `is_fresh=False` — trong production, batch này phải bị chặn trước khi nạp vào Vector Store.

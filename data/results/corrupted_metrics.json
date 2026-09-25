@@ -5,7 +5,7 @@
   "judge_accuracy": 0.8,
   "mean_judge_score": 4,
   "judge_exact_match_count": 7,
-  "judge_fallback_count": 2,
+  "judge_fallback_count": 3,
   "by_question_type": {
     "authors": {
       "samples": 3,
