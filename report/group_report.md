@@ -6,7 +6,7 @@
 | ------------------ | -------------------------- |
 | Khóa/Lớp         | K4                          |
 | Tên nhóm         | 2ae                         |
-| Repository         | https://github.com/vuxjqk/K4A-DAY10-2ae |
+| Repository         | https://github.com/vuxjqk/K4-L3-DAY10-2ae-DataPipeline |
 | Ngày hoàn thành | 2026-09-25                  |
 
 ### Thành viên và phân công
